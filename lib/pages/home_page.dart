@@ -7,7 +7,7 @@ import '../widgets/channel_sidebar.dart';
 import '../widgets/match_card.dart';
 import '../widgets/player_section.dart';
 import '../widgets/server_buttons.dart';
-import 'admin_page.dart';
+import 'admin_login_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -62,6 +62,11 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> loadChannels() async {
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+
     try {
       final channelData = await SupabaseService.getChannels();
       final List<Channel> loadedChannels = [];
@@ -71,25 +76,27 @@ class _HomePageState extends State<HomePage> {
 
         final servers = serverData.map((serverMap) {
           return Server(
-            id: serverMap['id'],
-            name: serverMap['name'],
-            quality: serverMap['quality'],
-            url: serverMap['stream_url'],
+            id: serverMap['id'].toString(),
+            name: serverMap['name'].toString(),
+            quality: serverMap['quality'].toString(),
+            url: serverMap['stream_url'].toString(),
           );
         }).toList();
 
         loadedChannels.add(
           Channel(
-            id: channelMap['id'],
-            name: channelMap['name'],
-            category: channelMap['category'],
-            logoText: channelMap['logo_text'],
+            id: channelMap['id'].toString(),
+            name: channelMap['name'].toString(),
+            category: channelMap['category'].toString(),
+            logoText: channelMap['logo_text'].toString(),
             isLive: channelMap['is_live'] ?? true,
             viewers: channelMap['viewers'] ?? 0,
             servers: servers,
           ),
         );
       }
+
+      if (!mounted) return;
 
       setState(() {
         channels = loadedChannels;
@@ -108,6 +115,8 @@ class _HomePageState extends State<HomePage> {
         isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
+
       setState(() {
         errorMessage = 'Failed to load channels';
         isLoading = false;
@@ -118,8 +127,8 @@ class _HomePageState extends State<HomePage> {
   List<Channel> get filteredChannels {
     if (searchText.trim().isEmpty) return channels;
 
+    final query = searchText.toLowerCase();
     return channels.where((channel) {
-      final query = searchText.toLowerCase();
       return channel.name.toLowerCase().contains(query) ||
           channel.category.toLowerCase().contains(query);
     }).toList();
@@ -128,7 +137,6 @@ class _HomePageState extends State<HomePage> {
   void selectChannel(Channel channel) {
     setState(() {
       selectedChannel = channel;
-
       selectedServer = channel.servers.isNotEmpty
           ? channel.servers.first
           : Server(
@@ -229,10 +237,7 @@ class _HomePageState extends State<HomePage> {
       children: [
         _topHeader(),
         const SizedBox(height: 22),
-        PlayerSection(
-          channel: selectedChannel!,
-          server: selectedServer,
-        ),
+        PlayerSection(channel: selectedChannel!, server: selectedServer),
         const SizedBox(height: 18),
         Text('Available Servers', style: _sectionTitleStyle()),
         const SizedBox(height: 12),
@@ -290,13 +295,16 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
           IconButton(
-            onPressed: () {
-              Navigator.push(
+            onPressed: () async {
+              await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => const AdminPage(),
+                  builder: (_) => const AdminLoginPage(),
                 ),
               );
+
+              if (!mounted) return;
+              loadChannels();
             },
             icon: const Icon(
               Icons.admin_panel_settings,
