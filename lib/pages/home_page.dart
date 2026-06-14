@@ -7,6 +7,7 @@ import '../widgets/channel_sidebar.dart';
 import '../widgets/match_card.dart';
 import '../widgets/player_section.dart';
 import '../widgets/server_buttons.dart';
+import 'admin_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -22,6 +23,7 @@ class _HomePageState extends State<HomePage> {
 
   List<Channel> channels = [];
   Channel? selectedChannel;
+
   Server selectedServer = Server(
     id: 'default',
     name: 'No Server',
@@ -30,9 +32,27 @@ class _HomePageState extends State<HomePage> {
   );
 
   final List<Map<String, dynamic>> matches = [
-    {'teamA': 'Argentina', 'teamB': 'Brazil', 'time': 'Live Now', 'stage': 'Group Stage', 'isLive': true},
-    {'teamA': 'France', 'teamB': 'Germany', 'time': '22:00', 'stage': 'Group Stage', 'isLive': false},
-    {'teamA': 'England', 'teamB': 'Spain', 'time': '01:00', 'stage': 'Group Stage', 'isLive': false},
+    {
+      'teamA': 'Argentina',
+      'teamB': 'Brazil',
+      'time': 'Live Now',
+      'stage': 'Group Stage',
+      'isLive': true,
+    },
+    {
+      'teamA': 'France',
+      'teamB': 'Germany',
+      'time': '22:00',
+      'stage': 'Group Stage',
+      'isLive': false,
+    },
+    {
+      'teamA': 'England',
+      'teamB': 'Spain',
+      'time': '01:00',
+      'stage': 'Group Stage',
+      'isLive': false,
+    },
   ];
 
   @override
@@ -74,14 +94,17 @@ class _HomePageState extends State<HomePage> {
       setState(() {
         channels = loadedChannels;
         selectedChannel = channels.isNotEmpty ? channels.first : null;
-        selectedServer = selectedChannel != null && selectedChannel!.servers.isNotEmpty
-            ? selectedChannel!.servers.first
-            : Server(
-                id: 'default',
-                name: 'No Server',
-                quality: 'N/A',
-                url: 'YOUR_STREAM_URL_HERE',
-              );
+
+        selectedServer =
+            selectedChannel != null && selectedChannel!.servers.isNotEmpty
+                ? selectedChannel!.servers.first
+                : Server(
+                    id: 'default',
+                    name: 'No Server',
+                    quality: 'N/A',
+                    url: 'YOUR_STREAM_URL_HERE',
+                  );
+
         isLoading = false;
       });
     } catch (e) {
@@ -105,6 +128,7 @@ class _HomePageState extends State<HomePage> {
   void selectChannel(Channel channel) {
     setState(() {
       selectedChannel = channel;
+
       selectedServer = channel.servers.isNotEmpty
           ? channel.servers.first
           : Server(
@@ -127,7 +151,9 @@ class _HomePageState extends State<HomePage> {
     if (isLoading) {
       return const Scaffold(
         backgroundColor: Color(0xFF05070D),
-        body: Center(child: CircularProgressIndicator(color: Color(0xFF00D084))),
+        body: Center(
+          child: CircularProgressIndicator(color: Color(0xFF00D084)),
+        ),
       );
     }
 
@@ -203,7 +229,10 @@ class _HomePageState extends State<HomePage> {
       children: [
         _topHeader(),
         const SizedBox(height: 22),
-        PlayerSection(channel: selectedChannel!, server: selectedServer),
+        PlayerSection(
+          channel: selectedChannel!,
+          server: selectedServer,
+        ),
         const SizedBox(height: 18),
         Text('Available Servers', style: _sectionTitleStyle()),
         const SizedBox(height: 12),
@@ -242,14 +271,36 @@ class _HomePageState extends State<HomePage> {
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: Colors.white10),
       ),
-      child: const Row(
+      child: Row(
         children: [
-          Icon(Icons.sports_soccer_rounded, color: Color(0xFF00D084), size: 42),
-          SizedBox(width: 16),
-          Expanded(
+          const Icon(
+            Icons.sports_soccer_rounded,
+            color: Color(0xFF00D084),
+            size: 42,
+          ),
+          const SizedBox(width: 16),
+          const Expanded(
             child: Text(
               'FIFA World Cup 2026',
-              style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900),
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          IconButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const AdminPage(),
+                ),
+              );
+            },
+            icon: const Icon(
+              Icons.admin_panel_settings,
+              color: Colors.white,
             ),
           ),
         ],
