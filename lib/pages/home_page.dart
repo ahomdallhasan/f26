@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/channel.dart';
 import '../models/server.dart';
+import '../services/supabase_service.dart';
 import '../widgets/channel_sidebar.dart';
 import '../widgets/match_card.dart';
 import '../widgets/player_section.dart';
@@ -16,141 +17,86 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   String searchText = '';
+  bool isLoading = true;
+  String? errorMessage;
 
-  late Channel selectedChannel;
-  late Server selectedServer;
-
-  final List<Channel> channels = [
-    Channel(
-      id: '1',
-      name: 'World Cup Main',
-      category: 'Official Coverage',
-      logoText: 'WC',
-      isLive: true,
-      viewers: 18240,
-      servers: [
-        Server(
-          id: 's1',
-          name: 'Server 1',
-          quality: 'HD',
-          url: 'YOUR_STREAM_URL_HERE',
-        ),
-        Server(
-          id: 's2',
-          name: 'Server 2',
-          quality: 'Full HD',
-          url: 'YOUR_STREAM_URL_HERE',
-        ),
-        Server(
-          id: 's3',
-          name: 'Server 3',
-          quality: 'Backup',
-          url: 'YOUR_STREAM_URL_HERE',
-        ),
-      ],
-    ),
-    Channel(
-      id: '2',
-      name: 'Sports Live 1',
-      category: 'English Commentary',
-      logoText: 'SL',
-      isLive: true,
-      viewers: 9250,
-      servers: [
-        Server(
-          id: 's1',
-          name: 'Server 1',
-          quality: 'HD',
-          url: 'YOUR_STREAM_URL_HERE',
-        ),
-        Server(
-          id: 's2',
-          name: 'Server 2',
-          quality: 'Backup',
-          url: 'YOUR_STREAM_URL_HERE',
-        ),
-      ],
-    ),
-    Channel(
-      id: '3',
-      name: 'Bangla Sports',
-      category: 'Bangla Commentary',
-      logoText: 'BD',
-      isLive: true,
-      viewers: 11300,
-      servers: [
-        Server(
-          id: 's1',
-          name: 'Server 1',
-          quality: 'HD',
-          url: 'YOUR_STREAM_URL_HERE',
-        ),
-        Server(
-          id: 's2',
-          name: 'Server 2',
-          quality: 'Mobile',
-          url: 'YOUR_STREAM_URL_HERE',
-        ),
-      ],
-    ),
-    Channel(
-      id: '4',
-      name: 'Match Center',
-      category: 'Highlights & Analysis',
-      logoText: 'MC',
-      isLive: false,
-      viewers: 3200,
-      servers: [
-        Server(
-          id: 's1',
-          name: 'Server 1',
-          quality: 'HD',
-          url: 'YOUR_STREAM_URL_HERE',
-        ),
-      ],
-    ),
-  ];
+  List<Channel> channels = [];
+  Channel? selectedChannel;
+  Server selectedServer = Server(
+    id: 'default',
+    name: 'No Server',
+    quality: 'N/A',
+    url: 'YOUR_STREAM_URL_HERE',
+  );
 
   final List<Map<String, dynamic>> matches = [
-    {
-      'teamA': 'Argentina',
-      'teamB': 'Brazil',
-      'time': 'Live Now',
-      'stage': 'Group Stage',
-      'isLive': true,
-    },
-    {
-      'teamA': 'France',
-      'teamB': 'Germany',
-      'time': '22:00',
-      'stage': 'Group Stage',
-      'isLive': false,
-    },
-    {
-      'teamA': 'England',
-      'teamB': 'Spain',
-      'time': '01:00',
-      'stage': 'Group Stage',
-      'isLive': false,
-    },
+    {'teamA': 'Argentina', 'teamB': 'Brazil', 'time': 'Live Now', 'stage': 'Group Stage', 'isLive': true},
+    {'teamA': 'France', 'teamB': 'Germany', 'time': '22:00', 'stage': 'Group Stage', 'isLive': false},
+    {'teamA': 'England', 'teamB': 'Spain', 'time': '01:00', 'stage': 'Group Stage', 'isLive': false},
   ];
 
   @override
   void initState() {
     super.initState();
+    loadChannels();
+  }
 
-    selectedChannel = channels.first;
-    selectedServer = selectedChannel.servers.first;
+  Future<void> loadChannels() async {
+    try {
+      final channelData = await SupabaseService.getChannels();
+      final List<Channel> loadedChannels = [];
+
+      for (final channelMap in channelData) {
+        final serverData = await SupabaseService.getServers(channelMap['id']);
+
+        final servers = serverData.map((serverMap) {
+          return Server(
+            id: serverMap['id'],
+            name: serverMap['name'],
+            quality: serverMap['quality'],
+            url: serverMap['stream_url'],
+          );
+        }).toList();
+
+        loadedChannels.add(
+          Channel(
+            id: channelMap['id'],
+            name: channelMap['name'],
+            category: channelMap['category'],
+            logoText: channelMap['logo_text'],
+            isLive: channelMap['is_live'] ?? true,
+            viewers: channelMap['viewers'] ?? 0,
+            servers: servers,
+          ),
+        );
+      }
+
+      setState(() {
+        channels = loadedChannels;
+        selectedChannel = channels.isNotEmpty ? channels.first : null;
+        selectedServer = selectedChannel != null && selectedChannel!.servers.isNotEmpty
+            ? selectedChannel!.servers.first
+            : Server(
+                id: 'default',
+                name: 'No Server',
+                quality: 'N/A',
+                url: 'YOUR_STREAM_URL_HERE',
+              );
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        errorMessage = 'Failed to load channels';
+        isLoading = false;
+      });
+    }
   }
 
   List<Channel> get filteredChannels {
-    if (searchText.trim().isEmpty) {
-      return channels;
-    }
+    if (searchText.trim().isEmpty) return channels;
 
     return channels.where((channel) {
       final query = searchText.toLowerCase();
-
       return channel.name.toLowerCase().contains(query) ||
           channel.category.toLowerCase().contains(query);
     }).toList();
@@ -159,7 +105,14 @@ class _HomePageState extends State<HomePage> {
   void selectChannel(Channel channel) {
     setState(() {
       selectedChannel = channel;
-      selectedServer = channel.servers.first;
+      selectedServer = channel.servers.isNotEmpty
+          ? channel.servers.first
+          : Server(
+              id: 'default',
+              name: 'No Server',
+              quality: 'N/A',
+              url: 'YOUR_STREAM_URL_HERE',
+            );
     });
   }
 
@@ -171,18 +124,32 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return const Scaffold(
+        backgroundColor: Color(0xFF05070D),
+        body: Center(child: CircularProgressIndicator(color: Color(0xFF00D084))),
+      );
+    }
+
+    if (errorMessage != null || selectedChannel == null) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF05070D),
+        body: Center(
+          child: Text(
+            errorMessage ?? 'No channels found',
+            style: const TextStyle(color: Colors.redAccent),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFF05070D),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
             final bool isMobile = constraints.maxWidth < 850;
-
-            if (isMobile) {
-              return _mobileLayout();
-            }
-
-            return _desktopLayout();
+            return isMobile ? _mobileLayout() : _desktopLayout();
           },
         ),
       ),
@@ -194,14 +161,10 @@ class _HomePageState extends State<HomePage> {
       children: [
         ChannelSidebar(
           channels: filteredChannels,
-          selectedChannel: selectedChannel,
+          selectedChannel: selectedChannel!,
           onChannelSelected: selectChannel,
           searchText: searchText,
-          onSearchChanged: (value) {
-            setState(() {
-              searchText = value;
-            });
-          },
+          onSearchChanged: (value) => setState(() => searchText = value),
           isMobile: false,
         ),
         Expanded(
@@ -221,14 +184,10 @@ class _HomePageState extends State<HomePage> {
         children: [
           ChannelSidebar(
             channels: filteredChannels,
-            selectedChannel: selectedChannel,
+            selectedChannel: selectedChannel!,
             onChannelSelected: selectChannel,
             searchText: searchText,
-            onSearchChanged: (value) {
-              setState(() {
-                searchText = value;
-              });
-            },
+            onSearchChanged: (value) => setState(() => searchText = value),
             isMobile: true,
           ),
           const SizedBox(height: 20),
@@ -243,38 +202,21 @@ class _HomePageState extends State<HomePage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _topHeader(),
-
         const SizedBox(height: 22),
-
-        PlayerSection(
-          channel: selectedChannel,
-          server: selectedServer,
-        ),
-
+        PlayerSection(channel: selectedChannel!, server: selectedServer),
         const SizedBox(height: 18),
-
-        Text(
-          'Available Servers',
-          style: _sectionTitleStyle(),
-        ),
-
+        Text('Available Servers', style: _sectionTitleStyle()),
         const SizedBox(height: 12),
-
         ServerButtons(
-          servers: selectedChannel.servers,
+          servers: selectedChannel!.servers.isNotEmpty
+              ? selectedChannel!.servers
+              : [selectedServer],
           selectedServer: selectedServer,
           onServerSelected: selectServer,
         ),
-
         const SizedBox(height: 30),
-
-        Text(
-          'Today Matches',
-          style: _sectionTitleStyle(),
-        ),
-
+        Text('Today Matches', style: _sectionTitleStyle()),
         const SizedBox(height: 14),
-
         Wrap(
           spacing: 14,
           runSpacing: 14,
@@ -300,66 +242,14 @@ class _HomePageState extends State<HomePage> {
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: Colors.white10),
       ),
-      child: Row(
+      child: const Row(
         children: [
-          Container(
-            width: 54,
-            height: 54,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [
-                  Color(0xFF00D084),
-                  Color(0xFF38BDF8),
-                ],
-              ),
-            ),
-            child: const Icon(
-              Icons.sports_soccer_rounded,
-              color: Colors.black,
-              size: 30,
-            ),
-          ),
-          const SizedBox(width: 16),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'FIFA World Cup 2026',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Live matches, channels, servers and schedules',
-                  style: TextStyle(
-                    color: Colors.white54,
-                    fontSize: 13,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 8,
-            ),
-            decoration: BoxDecoration(
-              color: Colors.redAccent,
-              borderRadius: BorderRadius.circular(30),
-            ),
-            child: const Text(
-              'LIVE',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
-              ),
+          Icon(Icons.sports_soccer_rounded, color: Color(0xFF00D084), size: 42),
+          SizedBox(width: 16),
+          Expanded(
+            child: Text(
+              'FIFA World Cup 2026',
+              style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900),
             ),
           ),
         ],
